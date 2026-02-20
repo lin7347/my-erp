@@ -141,7 +141,6 @@ with col_a:
 with col_b:
     st.subheader("🔍 歷史交易查詢 (三重交叉篩選)")
     if trans_data:
-        # 抓取不重複的客戶與商品名單
         if '客戶名稱' in df_t.columns:
             client_list = df_t[df_t['客戶名稱'].str.contains('[a-zA-Z0-9\u4e00-\u9fa5]', regex=True, na=False)]['客戶名稱'].unique().tolist()
         else:
@@ -152,14 +151,12 @@ with col_b:
         else:
             item_list = []
             
-        # 第一排：客戶與商品並排
         filter_col1, filter_col2 = st.columns(2)
         with filter_col1:
             selected_client = st.selectbox("1️⃣ 請選擇客戶 (選填)：", ["-- 所有客戶 --"] + client_list)
         with filter_col2:
             selected_item = st.selectbox("2️⃣ 請選擇商品 (選填)：", ["-- 所有商品 --"] + item_list)
         
-        # 第二排：日期區間
         today_date = datetime.now().date()
         first_day_of_month = today_date.replace(day=1)
         
@@ -168,7 +165,6 @@ with col_b:
         start_date = date_col1.date_input("📅 起始日期", value=first_day_of_month)
         end_date = date_col2.date_input("📅 結束日期", value=today_date)
         
-        # 開始進行三重篩選
         filtered_df = df_t.copy()
         
         if selected_client != "-- 所有客戶 --":
@@ -180,12 +176,10 @@ with col_b:
         mask = (filtered_df['純日期'] >= start_date) & (filtered_df['純日期'] <= end_date)
         filtered_df = filtered_df[mask]
         
-        # 顯示結算結果與提示字
         if selected_client != "-- 所有客戶 --" or selected_item != "-- 所有商品 --":
             c_sales = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['總金額'].sum()
             c_profit = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['毛利'].sum()
             
-            # 動態組合標題
             title_str = ""
             if selected_client != "-- 所有客戶 --": title_str += f"客戶: {selected_client}  "
             if selected_item != "-- 所有商品 --": title_str += f"商品: {selected_item}  "
@@ -195,8 +189,48 @@ with col_b:
         display_df = filtered_df.drop(columns=['純日期']) if '純日期' in filtered_df.columns else filtered_df
         st.dataframe(display_df.iloc[::-1], use_container_width=True)
 
+
 # ==========================================
-# 6. 刪除與撤銷單據
+# 6. 應收/應付帳款 結帳中心 (全新沖帳功能)
+# ==========================================
+st.markdown("---")
+st.subheader("💳 應收/應付帳款 結帳中心")
+
+if trans_data:
+    unpaid_options = []
+    for row in trans_data[::-1]:
+        payment_status = str(row.get('結帳狀態', ''))
+        # 系統自動抓出所有還是「記帳/月結」的單據
+        if "記帳/月結" in payment_status:
+            client_info = str(row.get('客戶名稱', '未填寫')).strip()
+            if not client_info or client_info == 'nan':
+                client_info = '未填寫'
+            
+            # 標示是準備收錢還是準備付錢
+            money_type = "💰 應收" if "應收帳款" in payment_status else "💸 應付"
+            
+            option_text = f"{row.get('日期', '')} | {money_type} | 客戶:{client_info} | {row.get('商品名稱', '')} | 金額: ${row.get('總金額', 0):,.0f}"
+            unpaid_options.append(option_text)
+            
+    if unpaid_options:
+        selected_to_pay = st.selectbox("請選擇要「結清」的帳單：", unpaid_options)
+        
+        if st.button("✅ 確認款項已收/付 (更改為已結清)"):
+            target_date = selected_to_pay.split(" | ")[0]
+            
+            try:
+                cell = worksheet_trans.find(target_date)
+                if cell:
+                    # G 欄 (第7欄) 是「結帳狀態」，我們將它覆蓋更新
+                    worksheet_trans.update_cell(cell.row, 7, "✅ 已結清 (歷史沖帳)")
+                    st.success(f"🎉 成功沖帳！單據狀態已更新，財務儀表板的未收/未付金額已同步扣除。請重新整理網頁！")
+            except Exception as e:
+                st.error("結帳過程中發生錯誤，請確認網路狀態或稍後再試。")
+    else:
+        st.info("🎉 太棒了！目前沒有任何在外欠款或待付帳單。")
+
+# ==========================================
+# 7. 刪除與撤銷單據
 # ==========================================
 st.markdown("---")
 st.subheader("🗑️ 刪除與撤銷單據")
