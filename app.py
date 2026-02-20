@@ -81,7 +81,7 @@ if st.sidebar.button("💾 確認送出"):
             st.sidebar.success(f"💰 成功接單！本單毛利：${profit:,.0f} ({payment})。🚨 提醒：目前庫存為 {new_qty} 件。")
 
 # ==========================================
-# 4. 資料清洗與財務儀表板
+# 4. 資料清洗與財務儀表板 (新增現金結餘)
 # ==========================================
 st.markdown("---")
 trans_data = worksheet_trans.get_all_records()
@@ -98,7 +98,6 @@ if trans_data:
             df_t[col] = df_t[col].astype(str).str.strip()
     
     df_t['純日期'] = pd.to_datetime(df_t['日期'], errors='coerce').dt.date
-    
     today_str = datetime.now().strftime("%Y-%m-%d")
     month_str = datetime.now().strftime("%Y-%m")
     
@@ -115,16 +114,23 @@ if trans_data:
         if '結帳狀態' in df_t.columns and '總金額' in df_t.columns:
             ar_total = df_sales[df_sales['結帳狀態'] == '記帳/月結 (應收帳款)']['總金額'].sum()
             ap_total = df_purchases[df_purchases['結帳狀態'] == '記帳/月結 (應付帳款)']['總金額'].sum()
+            
+            # 👇 計算今日現金結餘 (只抓今天且現金結清的單)
+            today_cash_in = df_sales[(df_sales['日期'].str.startswith(today_str)) & (df_sales['結帳狀態'] == '現金結清')]['總金額'].sum()
+            today_cash_out = df_purchases[(df_purchases['日期'].str.startswith(today_str)) & (df_purchases['結帳狀態'] == '現金結清')]['總金額'].sum()
+            daily_cash_balance = today_cash_in - today_cash_out
         else:
-            ar_total, ap_total = 0, 0
+            ar_total, ap_total, daily_cash_balance = 0, 0, 0
     else:
-        daily_profit, monthly_profit, ar_total, ap_total = 0, 0, 0, 0
+        daily_profit, monthly_profit, ar_total, ap_total, daily_cash_balance = 0, 0, 0, 0, 0
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("🌟 今日實賺 (毛利)", f"${daily_profit:,.0f}")
-    col2.metric("📈 本月累計獲利", f"${monthly_profit:,.0f}")
-    col3.metric("⚠️ 在外未收 (應收帳款)", f"${ar_total:,.0f}")
-    col4.metric("💳 待付貨款 (應付帳款)", f"${ap_total:,.0f}")
+    # 👇 改成 5 個看板並排顯示
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("💵 今日現金結餘", f"${daily_cash_balance:,.0f}")
+    col2.metric("🌟 今日實賺 (毛利)", f"${daily_profit:,.0f}")
+    col3.metric("📈 本月累計獲利", f"${monthly_profit:,.0f}")
+    col4.metric("⚠️ 在外未收 (應收)", f"${ar_total:,.0f}")
+    col5.metric("💳 待付貨款 (應付)", f"${ap_total:,.0f}")
 
 # ==========================================
 # 5. 數據總覽與【三重交叉】查詢引擎
@@ -191,7 +197,7 @@ with col_b:
 
 
 # ==========================================
-# 6. 應收/應付帳款 結帳中心 (全新沖帳功能)
+# 6. 應收/應付帳款 結帳中心
 # ==========================================
 st.markdown("---")
 st.subheader("💳 應收/應付帳款 結帳中心")
@@ -200,15 +206,12 @@ if trans_data:
     unpaid_options = []
     for row in trans_data[::-1]:
         payment_status = str(row.get('結帳狀態', ''))
-        # 系統自動抓出所有還是「記帳/月結」的單據
         if "記帳/月結" in payment_status:
             client_info = str(row.get('客戶名稱', '未填寫')).strip()
             if not client_info or client_info == 'nan':
                 client_info = '未填寫'
             
-            # 標示是準備收錢還是準備付錢
             money_type = "💰 應收" if "應收帳款" in payment_status else "💸 應付"
-            
             option_text = f"{row.get('日期', '')} | {money_type} | 客戶:{client_info} | {row.get('商品名稱', '')} | 金額: ${row.get('總金額', 0):,.0f}"
             unpaid_options.append(option_text)
             
@@ -217,11 +220,9 @@ if trans_data:
         
         if st.button("✅ 確認款項已收/付 (更改為已結清)"):
             target_date = selected_to_pay.split(" | ")[0]
-            
             try:
                 cell = worksheet_trans.find(target_date)
                 if cell:
-                    # G 欄 (第7欄) 是「結帳狀態」，我們將它覆蓋更新
                     worksheet_trans.update_cell(cell.row, 7, "✅ 已結清 (歷史沖帳)")
                     st.success(f"🎉 成功沖帳！單據狀態已更新，財務儀表板的未收/未付金額已同步扣除。請重新整理網頁！")
             except Exception as e:
