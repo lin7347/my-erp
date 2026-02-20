@@ -29,6 +29,7 @@ trans_type = st.sidebar.selectbox("交易類別", ["進貨 (付出去的錢)", "
 item_name = st.sidebar.text_input("商品名稱 (例如：A級零件)")
 qty = st.sidebar.number_input("數量", min_value=1, step=1)
 price = st.sidebar.number_input("單價 (元)", min_value=0.0, step=1.0)
+partner_name = st.sidebar.text_input("客戶/廠商名稱")
 
 # ==========================================
 # 3. 核心商業邏輯 (寫入 Google Sheets)
@@ -41,8 +42,7 @@ if st.sidebar.button("💾 確認送出"):
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # 寫入交易紀錄到 transactions 分頁
-        worksheet_trans.append_row([date_str, trans_type, item_name, qty, price, total_amount])
-
+        worksheet_trans.append_row([date_str, trans_type, item_name, qty, price, total_amount, partner_name])
         # 讀取目前庫存狀況
         inv_records = worksheet_inv.get_all_records()
         
@@ -94,4 +94,5 @@ with col2:
         df_t = pd.DataFrame(trans_data)
         st.dataframe(df_t.iloc[::-1], use_container_width=True) # 反轉順序，讓最新的在最上面
     else:
+
         st.info("目前尚無交易資料")
