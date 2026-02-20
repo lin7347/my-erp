@@ -97,7 +97,6 @@ if trans_data:
         if col in df_t.columns:
             df_t[col] = df_t[col].astype(str).str.strip()
     
-    # 建立純日期欄位，方便後續的日曆篩選
     df_t['純日期'] = pd.to_datetime(df_t['日期'], errors='coerce').dt.date
     
     today_str = datetime.now().strftime("%Y-%m-%d")
@@ -128,7 +127,7 @@ if trans_data:
     col4.metric("💳 待付貨款 (應付帳款)", f"${ap_total:,.0f}")
 
 # ==========================================
-# 5. 數據總覽與【日期+客戶】雙重查詢引擎
+# 5. 數據總覽與【三重交叉】查詢引擎
 # ==========================================
 st.markdown("---")
 col_a, col_b = st.columns([1, 2])
@@ -140,43 +139,59 @@ with col_a:
         st.dataframe(pd.DataFrame(inv_data), use_container_width=True)
 
 with col_b:
-    st.subheader("🔍 歷史交易查詢 (支援日期與客戶篩選)")
+    st.subheader("🔍 歷史交易查詢 (三重交叉篩選)")
     if trans_data:
-        # 第一排：客戶下拉選單
+        # 抓取不重複的客戶與商品名單
         if '客戶名稱' in df_t.columns:
             client_list = df_t[df_t['客戶名稱'].str.contains('[a-zA-Z0-9\u4e00-\u9fa5]', regex=True, na=False)]['客戶名稱'].unique().tolist()
         else:
             client_list = []
             
-        selected_client = st.selectbox("1️⃣ 請選擇查詢對象：", ["-- 顯示全部明細 --"] + client_list)
+        if '商品名稱' in df_t.columns:
+            item_list = df_t[df_t['商品名稱'].str.contains('[a-zA-Z0-9\u4e00-\u9fa5]', regex=True, na=False)]['商品名稱'].unique().tolist()
+        else:
+            item_list = []
+            
+        # 第一排：客戶與商品並排
+        filter_col1, filter_col2 = st.columns(2)
+        with filter_col1:
+            selected_client = st.selectbox("1️⃣ 請選擇客戶 (選填)：", ["-- 所有客戶 --"] + client_list)
+        with filter_col2:
+            selected_item = st.selectbox("2️⃣ 請選擇商品 (選填)：", ["-- 所有商品 --"] + item_list)
         
-        # 第二排：日期區間選擇器 (預設為本月1號到今天)
+        # 第二排：日期區間
         today_date = datetime.now().date()
         first_day_of_month = today_date.replace(day=1)
         
-        st.write("2️⃣ 請選擇結帳期間：")
+        st.write("3️⃣ 請選擇結帳期間：")
         date_col1, date_col2 = st.columns(2)
         start_date = date_col1.date_input("📅 起始日期", value=first_day_of_month)
         end_date = date_col2.date_input("📅 結束日期", value=today_date)
         
-        # 開始進行雙重篩選 (客戶 + 日期)
-        if selected_client != "-- 顯示全部明細 --":
-            base_df = df_t[df_t['客戶名稱'] == selected_client]
-        else:
-            base_df = df_t
-            
-        # 套用日期遮罩
-        mask = (base_df['純日期'] >= start_date) & (base_df['純日期'] <= end_date)
-        filtered_df = base_df[mask]
+        # 開始進行三重篩選
+        filtered_df = df_t.copy()
         
-        # 顯示結算結果
-        if selected_client != "-- 顯示全部明細 --":
+        if selected_client != "-- 所有客戶 --":
+            filtered_df = filtered_df[filtered_df['客戶名稱'] == selected_client]
+            
+        if selected_item != "-- 所有商品 --":
+            filtered_df = filtered_df[filtered_df['商品名稱'] == selected_item]
+            
+        mask = (filtered_df['純日期'] >= start_date) & (filtered_df['純日期'] <= end_date)
+        filtered_df = filtered_df[mask]
+        
+        # 顯示結算結果與提示字
+        if selected_client != "-- 所有客戶 --" or selected_item != "-- 所有商品 --":
             c_sales = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['總金額'].sum()
             c_profit = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['毛利'].sum()
             
-            st.success(f"📌 **{selected_client}** 於所選期間 累計叫貨：${c_sales:,.0f} ｜ 💰 期間總毛利：${c_profit:,.0f}")
+            # 動態組合標題
+            title_str = ""
+            if selected_client != "-- 所有客戶 --": title_str += f"客戶: {selected_client}  "
+            if selected_item != "-- 所有商品 --": title_str += f"商品: {selected_item}  "
             
-        # 隱藏用來計算的純日期欄位，保持畫面乾淨
+            st.success(f"📌 **[{title_str.strip()}]** 於所選期間 累計銷貨：${c_sales:,.0f} ｜ 💰 期間總毛利：${c_profit:,.0f}")
+            
         display_df = filtered_df.drop(columns=['純日期']) if '純日期' in filtered_df.columns else filtered_df
         st.dataframe(display_df.iloc[::-1], use_container_width=True)
 
