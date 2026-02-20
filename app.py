@@ -81,7 +81,7 @@ if st.sidebar.button("💾 確認送出"):
             st.sidebar.success(f"💰 成功接單！本單毛利：${profit:,.0f} ({payment})。🚨 提醒：目前庫存為 {new_qty} 件。")
 
 # ==========================================
-# 4. 【新裝甲】資料清洗與財務儀表板
+# 4. 資料清洗與財務儀表板
 # ==========================================
 st.markdown("---")
 trans_data = worksheet_trans.get_all_records()
@@ -89,15 +89,16 @@ trans_data = worksheet_trans.get_all_records()
 if trans_data:
     df_t = pd.DataFrame(trans_data)
     
-    # 🛡️ 資料清洗裝甲：確保數字欄位絕對是數字，空白變成 0
     for col in ['數量', '單價', '總金額', '成本', '毛利']:
         if col in df_t.columns:
             df_t[col] = pd.to_numeric(df_t[col], errors='coerce').fillna(0)
             
-    # 🛡️ 資料清洗裝甲：清除文字欄位多餘的空白鍵
     for col in ['類別', '商品名稱', '客戶名稱', '結帳狀態', '日期']:
         if col in df_t.columns:
             df_t[col] = df_t[col].astype(str).str.strip()
+    
+    # 建立純日期欄位，方便後續的日曆篩選
+    df_t['純日期'] = pd.to_datetime(df_t['日期'], errors='coerce').dt.date
     
     today_str = datetime.now().strftime("%Y-%m-%d")
     month_str = datetime.now().strftime("%Y-%m")
@@ -127,7 +128,7 @@ if trans_data:
     col4.metric("💳 待付貨款 (應付帳款)", f"${ap_total:,.0f}")
 
 # ==========================================
-# 5. 數據總覽與客戶查詢引擎
+# 5. 數據總覽與【日期+客戶】雙重查詢引擎
 # ==========================================
 st.markdown("---")
 col_a, col_b = st.columns([1, 2])
@@ -139,26 +140,45 @@ with col_a:
         st.dataframe(pd.DataFrame(inv_data), use_container_width=True)
 
 with col_b:
-    st.subheader("🔍 客戶/廠商 歷史交易查詢")
+    st.subheader("🔍 歷史交易查詢 (支援日期與客戶篩選)")
     if trans_data:
+        # 第一排：客戶下拉選單
         if '客戶名稱' in df_t.columns:
-            # 🛡️ 智能過濾：只抓取真的有填寫文字的客戶名單（排除空白和 nan）
             client_list = df_t[df_t['客戶名稱'].str.contains('[a-zA-Z0-9\u4e00-\u9fa5]', regex=True, na=False)]['客戶名稱'].unique().tolist()
         else:
             client_list = []
             
-        selected_client = st.selectbox("請選擇查詢對象：", ["-- 顯示全部明細 --"] + client_list)
+        selected_client = st.selectbox("1️⃣ 請選擇查詢對象：", ["-- 顯示全部明細 --"] + client_list)
         
+        # 第二排：日期區間選擇器 (預設為本月1號到今天)
+        today_date = datetime.now().date()
+        first_day_of_month = today_date.replace(day=1)
+        
+        st.write("2️⃣ 請選擇結帳期間：")
+        date_col1, date_col2 = st.columns(2)
+        start_date = date_col1.date_input("📅 起始日期", value=first_day_of_month)
+        end_date = date_col2.date_input("📅 結束日期", value=today_date)
+        
+        # 開始進行雙重篩選 (客戶 + 日期)
         if selected_client != "-- 顯示全部明細 --":
-            client_df = df_t[df_t['客戶名稱'] == selected_client]
-            
-            c_sales = client_df[client_df['類別'] == '銷貨 (賣出賺錢)']['總金額'].sum()
-            c_profit = client_df[client_df['類別'] == '銷貨 (賣出賺錢)']['毛利'].sum()
-            
-            st.success(f"📌 **{selected_client}** 累計叫貨總額：${c_sales:,.0f} ｜ 💰 貢獻總毛利：${c_profit:,.0f}")
-            st.dataframe(client_df.iloc[::-1], use_container_width=True)
+            base_df = df_t[df_t['客戶名稱'] == selected_client]
         else:
-            st.dataframe(df_t.iloc[::-1], use_container_width=True)
+            base_df = df_t
+            
+        # 套用日期遮罩
+        mask = (base_df['純日期'] >= start_date) & (base_df['純日期'] <= end_date)
+        filtered_df = base_df[mask]
+        
+        # 顯示結算結果
+        if selected_client != "-- 顯示全部明細 --":
+            c_sales = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['總金額'].sum()
+            c_profit = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['毛利'].sum()
+            
+            st.success(f"📌 **{selected_client}** 於所選期間 累計叫貨：${c_sales:,.0f} ｜ 💰 期間總毛利：${c_profit:,.0f}")
+            
+        # 隱藏用來計算的純日期欄位，保持畫面乾淨
+        display_df = filtered_df.drop(columns=['純日期']) if '純日期' in filtered_df.columns else filtered_df
+        st.dataframe(display_df.iloc[::-1], use_container_width=True)
 
 # ==========================================
 # 6. 刪除與撤銷單據
