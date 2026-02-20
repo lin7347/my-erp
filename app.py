@@ -136,3 +136,56 @@ with col_b:
     st.subheader("🧾 交易與財務明細")
     if trans_data:
         st.dataframe(df_t.iloc[::-1], use_container_width=True)
+
+# ==========================================
+# 6. 刪除與撤銷單據 (一鍵校正庫存)
+# ==========================================
+st.markdown("---")
+st.subheader("🗑️ 刪除與撤銷單據")
+
+if trans_data:
+    # 整理出下拉選單的選項 (顯示格式：日期 | 類別 | 商品 | 數量)
+    delete_options = []
+    for row in trans_data[::-1]: # 從最新的單據開始顯示
+        option_text = f"{row['日期']} | {row['類別']} | {row['商品名稱']} | {row['數量']}件"
+        delete_options.append(option_text)
+        
+    selected_to_delete = st.selectbox("⚠️ 請選擇要撤銷的單據：", delete_options)
+    
+    if st.button("🚨 確認刪除並自動校正庫存"):
+        # 1. 抓出這筆單據的「日期時間」作為尋找目標
+        target_date = selected_to_delete.split(" | ")[0]
+        
+        # 找出這筆單據的原始資料
+        target_row_data = next((item for item in trans_data if str(item['日期']) == target_date), None)
+        
+        if target_row_data:
+            try:
+                # 2. 去交易紀錄表找出那一列並刪除
+                cell = worksheet_trans.find(target_date)
+                if cell:
+                    worksheet_trans.delete_rows(cell.row)
+                    
+                    # 3. 去庫存表把數量加減回來
+                    t_type = target_row_data['類別']
+                    t_item = target_row_data['商品名稱']
+                    t_qty = int(target_row_data['數量'])
+                    
+                    inv_records_current = worksheet_inv.get_all_records()
+                    for i, inv_row in enumerate(inv_records_current):
+                        if str(inv_row.get('商品名稱', '')) == t_item:
+                            current_stock = int(inv_row.get('數量', 0))
+                            row_index = i + 2
+                            
+                            # 商業邏輯：銷貨被刪除 -> 補回庫存；進貨被刪除 -> 扣除庫存
+                            if "銷貨" in t_type:
+                                new_stock = current_stock + t_qty
+                            elif "進貨" in t_type:
+                                new_stock = current_stock - t_qty
+                                
+                            worksheet_inv.update_cell(row_index, 2, new_stock)
+                            break
+                            
+                    st.success(f"✅ 成功刪除！單據已銷毀，庫存也已自動校正。請重新整理網頁查看最新數據。")
+            except Exception as e:
+                st.error("刪除過程中發生錯誤，請確認該單據是否已在試算表被手動刪除了。")
