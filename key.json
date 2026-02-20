@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "big-calling-488008-c2",
+  "private_key_id": "d5b5fb39aa18a5d0ef16ca289d5edbaed51c243f",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC5fNHaE2rlSe0N\nBpCkHAcxt3BWQMmcK1Gnu0ze9TgxQimRRyKj8PYzC8dBIDenLG8cV0DM0UMXVj0x\nnpMVJ5xc6VQKjVr6wLY7vSkl7sywDokCu0m4MhBxxfIjbfWVIH/8/MZ1jgfjr5Ai\neT5Oe+lpWBWVwt8xJaKs4QIp+eViVqvkWOJYB3Gdg3/djlstZiVeRXmOG3T0r1K0\nk13jz3dcmX2R0J0Ag4dvqZMG975Wer5vJ8t/+ZoRMQJUaRV2CHK0neZTFMyU8NUH\ni8LPpCPL8GR3KjAmpcqE3qk7tpZMNVfD0tFG0Xobqj470aCmRkfJ4ZSvRV3ql/qD\np28+m9NfAgMBAAECggEAGHh1HvYM1i8IjP1eu6fO8yomMdrePjIg1aYKICftv+Hg\npf/ifApgEJ/vK5JahT2BcxW3wM2iskN4U0F+Wf4dzMwjgDjh1c7yu7La6Nw2OMvS\nG4Al250POlNI/I+XJJNjDzcx33RbahhRRZsFM0l5o6IxRs6sr0ktyuzsYilLr8tR\n0ixxwyXn5R0Bxxa9967l4xQ039emJtKK9IBdwDleh+z+9n6DXC8KkCmDiDgbJXk7\negYeYX4fXafVHi379wUCv6EGtrUT/l5ceydUiKcFxWQW2yi7CjrEiFOeVkhHJUkf\nX6IYpRDV7gO2fQ/nSQLwiFs87OprDp0GQSYTcdWP0QKBgQDlyjNx+k9ux2YQWF95\nyiPK+rjz66fCEmlwnrz4LgpSHLx/xH8k3MhNe1X/oDX3ZC4tCF9HkMhXjHQdMhbE\nO9YySnVk0a24Pec375TWIbz7QvPXo4EMfEfXxY1zhPxLjKEWZ/fnTEzNEXFVzHsZ\nMxVUCRlmd5po156NVNL3ULmarQKBgQDOpQFCMCFynCxF4xZzhocPEGdkxF5SOdYG\n1C9GuLKlp77xBqgrQPklfQ8Rx+Kpd+JNcOvqc9N9+ubbmX66A4JSR5Tda3+ECrHi\n7Rig/8FsgVn9L5RZDURX6zGCKtYVDOj6GNX9mscl/1Y0voBEgaI//NX/54GBY/t5\nMvcnGWETuwKBgHmtg2ZURGGFpq77DLuB5UgjUXKgE3n5o+mltKy6PG7UlqAVXboY\nStx0dcphfJIeczEXYNSVfvCVCBs5ncKVaMvCj70uJo4MAXamH6rvvJFUF6jVBI2m\n9af1DPzhq3MZ6Wbi8OuChJyGIvxqxbhHS4DvPIr8xD/GBUgTZY7eKRoVAoGBAMA1\nrPEC0enIKEotSzHT3QZ/DJ0nJlC3aUPa08qle84oNKv+tCfffJ+JLp4sXcGiOEYu\nFdJzQDJ7UYbLxJuDLhIYcPhvyCFqzUG1peYDXsftnWWqfwNCGuLoapmX/J+B7abL\nuSf2cuz+DxJqa+bM6b05EVjB3q0a8csvQ8MDkU+HAoGARY01umTNvmVUMI9grDoq\n3RlUYyJPor7U/VMvUGKSBW8agJNoRDJEFgO12vpc213Wnyd3NHKoFBLtDFqkFwPp\nzVmRGx5LQm4tw/119W0paEP9MEzuKqJ4Co7fDCJvFn2/rgm1uFFqL6TP1HoOti+7\nUp2ewb3VDypUVZJ9MaZ/OtA=\n-----END PRIVATE KEY-----\n",
+  "client_email": "erp-bot@big-calling-488008-c2.iam.gserviceaccount.com",
+  "client_id": "105279008120477176729",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/erp-bot%40big-calling-488008-c2.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

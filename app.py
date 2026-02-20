@@ -1,29 +1,29 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
 # ==========================================
-# 1. 資料庫連線與建立資料表 (Database Setup)
+# 1. 資料庫連線 (連接您的 Google 試算表)
 # ==========================================
-conn = sqlite3.connect('business.db')
-c = conn.cursor()
+# 設定機器人的權限範圍
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+# 讀取您專屬的 key.json 鑰匙
+creds = ServiceAccountCredentials.from_json_keyfile_name("key.json", scope)
+client = gspread.authorize(creds)
 
-# 建立「交易紀錄表」
-c.execute('''CREATE TABLE IF NOT EXISTS transactions
-             (date TEXT, type TEXT, item TEXT, qty INTEGER, price REAL, total REAL)''')
-# 建立「倉庫庫存表」
-c.execute('''CREATE TABLE IF NOT EXISTS inventory
-             (item TEXT PRIMARY KEY, qty INTEGER)''')
-conn.commit()
+# 透過鑰匙打開您的試算表
+sheet = client.open("進銷存系統資料庫")
+worksheet_trans = sheet.worksheet("transactions")
+worksheet_inv = sheet.worksheet("inventory")
 
 # ==========================================
-# 2. 前端網頁介面設計 (UI Design)
+# 2. 前端網頁介面設計
 # ==========================================
-st.set_page_config(page_title="中盤商記帳系統", layout="wide")
-st.title("📦 專屬進銷存與記帳系統")
+st.set_page_config(page_title="雲端進銷存系統", layout="wide")
+st.title("☁️ 專屬進銷存系統 (Google 雲端同步版)")
 
-# 左側邊欄：操作面板
 st.sidebar.header("📝 新增交易單")
 trans_type = st.sidebar.selectbox("交易類別", ["進貨 (付出去的錢)", "銷貨 (收進來的錢)"])
 item_name = st.sidebar.text_input("商品名稱 (例如：A級零件)")
@@ -31,7 +31,7 @@ qty = st.sidebar.number_input("數量", min_value=1, step=1)
 price = st.sidebar.number_input("單價 (元)", min_value=0.0, step=1.0)
 
 # ==========================================
-# 3. 核心商業邏輯 (Business Logic)
+# 3. 核心商業邏輯 (寫入 Google Sheets)
 # ==========================================
 if st.sidebar.button("💾 確認送出"):
     if item_name == "":
@@ -40,43 +40,58 @@ if st.sidebar.button("💾 確認送出"):
         total_amount = qty * price
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 寫入交易紀錄
-        c.execute("INSERT INTO transactions VALUES (?,?,?,?,?,?)",
-                  (date_str, trans_type, item_name, qty, price, total_amount))
+        # 寫入交易紀錄到 transactions 分頁
+        worksheet_trans.append_row([date_str, trans_type, item_name, qty, price, total_amount])
 
-        # 檢查庫存現況
-        c.execute("SELECT qty FROM inventory WHERE item=?", (item_name,))
-        current_stock = c.fetchone()
+        # 讀取目前庫存狀況
+        inv_records = worksheet_inv.get_all_records()
+        
+        # 尋找該商品是否已在倉庫中
+        item_exists = False
+        row_index = 2 # 試算表第一行是標題，資料從第二行開始
+        current_qty = 0
 
-        # 進貨邏輯：庫存增加
+        for i, row in enumerate(inv_records):
+            if str(row.get('item', '')) == item_name:
+                item_exists = True
+                current_qty = int(row.get('qty', 0))
+                row_index = i + 2 
+                break
+
         if "進貨" in trans_type:
-            if current_stock:
-                c.execute("UPDATE inventory SET qty = qty + ? WHERE item=?", (qty, item_name))
+            new_qty = current_qty + qty
+            if item_exists:
+                worksheet_inv.update_cell(row_index, 2, new_qty)
             else:
-                c.execute("INSERT INTO inventory VALUES (?,?)", (item_name, qty))
-            st.sidebar.success(f"✅ 成功進貨 {qty} 件 {item_name}！")
-            conn.commit()
+                worksheet_inv.append_row([item_name, new_qty])
+            st.sidebar.success(f"✅ 成功進貨 {qty} 件 {item_name}！資料已同步至 Google 表單。")
             
-        # 銷貨邏輯：庫存減少 (需防呆機制：庫存不能扣到變負數)
         elif "銷貨" in trans_type:
-            if current_stock and current_stock[0] >= qty:
-                c.execute("UPDATE inventory SET qty = qty - ? WHERE item=?", (qty, item_name))
-                st.sidebar.success(f"💰 成功銷貨！進帳 {total_amount} 元")
-                conn.commit()
+            if item_exists and current_qty >= qty:
+                new_qty = current_qty - qty
+                worksheet_inv.update_cell(row_index, 2, new_qty)
+                st.sidebar.success(f"💰 成功銷貨！進帳 {total_amount} 元。資料已同步至 Google 表單。")
             else:
                 st.sidebar.error("⚠️ 失敗：倉庫裡的庫存不夠賣喔！")
 
 # ==========================================
-# 4. 數據總覽儀表板 (Dashboard)
+# 4. 數據總覽儀表板 (即時讀取試算表)
 # ==========================================
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📊 目前倉庫庫存")
-    df_inv = pd.read_sql_query("SELECT item as '商品名稱', qty as '現有數量' FROM inventory", conn)
-    st.dataframe(df_inv, use_container_width=True, hide_index=True)
+    inv_data = worksheet_inv.get_all_records()
+    if inv_data:
+        st.dataframe(pd.DataFrame(inv_data), use_container_width=True)
+    else:
+        st.info("目前尚無庫存資料")
 
 with col2:
     st.subheader("💸 歷史交易與帳務")
-    df_trans = pd.read_sql_query("SELECT date as '時間', type as '類別', item as '商品', qty as '數量', price as '單價', total as '總金額' FROM transactions ORDER BY date DESC", conn)
-    st.dataframe(df_trans, use_container_width=True, hide_index=True)
+    trans_data = worksheet_trans.get_all_records()
+    if trans_data:
+        df_t = pd.DataFrame(trans_data)
+        st.dataframe(df_t.iloc[::-1], use_container_width=True) # 反轉順序，讓最新的在最上面
+    else:
+        st.info("目前尚無交易資料")
