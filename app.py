@@ -24,7 +24,6 @@ st.title("💰 專屬進銷存與財務系統 (全中文雲端版)")
 st.sidebar.header("📝 新增交易單")
 trans_type = st.sidebar.selectbox("交易類別", ["銷貨 (賣出賺錢)", "進貨 (買入囤貨)"])
 
-# 👇 這是為您新增的客戶名稱欄位
 client_name = st.sidebar.text_input("客戶 / 廠商名稱 (例如：王老闆)")
 item_name = st.sidebar.text_input("商品名稱 (例如：A級零件)")
 qty = st.sidebar.number_input("數量", min_value=1, step=1)
@@ -49,7 +48,6 @@ if st.sidebar.button("💾 確認送出"):
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         profit = (price - cost) * qty if trans_type == "銷貨 (賣出賺錢)" else 0
         
-        # 👇 寫入交易紀錄 (在最後面多加了 client_name)
         worksheet_trans.append_row([date_str, trans_type, item_name, qty, price, total_amount, payment, cost, profit, client_name])
 
         inv_records = worksheet_inv.get_all_records()
@@ -73,7 +71,6 @@ if st.sidebar.button("💾 確認送出"):
             st.sidebar.success(f"✅ 成功進貨！金額 ${total_amount:,.0f} ({payment})")
             
         elif "銷貨" in trans_type:
-            # 保留了允許變成負數的邏輯
             new_qty = current_qty - qty 
             if item_exists:
                 worksheet_inv.update_cell(row_index, 2, new_qty)
@@ -120,7 +117,7 @@ if trans_data:
     col4.metric("💳 待付貨款 (應付帳款)", f"${ap_total:,.0f}")
 
 # ==========================================
-# 5. 數據總覽明細
+# 5. 數據總覽與客戶查詢引擎 (全新升級區塊)
 # ==========================================
 st.markdown("---")
 col_a, col_b = st.columns([1, 2])
@@ -132,10 +129,29 @@ with col_a:
         st.dataframe(pd.DataFrame(inv_data), use_container_width=True)
 
 with col_b:
-    st.subheader("🧾 交易與財務明細")
+    st.subheader("🔍 客戶/廠商 歷史交易查詢")
     if trans_data:
-        # 讓最新的交易在最上面，並且包含客戶名稱
-        st.dataframe(df_t.iloc[::-1], use_container_width=True)
+        # 整理出不重複的客戶名單 (排除沒填寫的空白名單)
+        if '客戶名稱' in df_t.columns:
+            client_list = df_t['客戶名稱'].astype(str).dropna().unique().tolist()
+            client_list = [c for c in client_list if c.strip() != ""]
+        else:
+            client_list = []
+            
+        selected_client = st.selectbox("請選擇查詢對象：", ["-- 顯示全部明細 --"] + client_list)
+        
+        if selected_client != "-- 顯示全部明細 --":
+            # 過濾出該客戶的專屬資料
+            client_df = df_t[df_t['客戶名稱'] == selected_client]
+            
+            # 計算該客戶的總消費與總毛利
+            c_sales = pd.to_numeric(client_df[client_df['類別'] == '銷貨 (賣出賺錢)']['總金額'], errors='coerce').fillna(0).sum()
+            c_profit = pd.to_numeric(client_df[client_df['類別'] == '銷貨 (賣出賺錢)']['毛利'], errors='coerce').fillna(0).sum()
+            
+            st.success(f"📌 **{selected_client}** 累計叫貨總額：${c_sales:,.0f} ｜ 💰 貢獻總毛利：${c_profit:,.0f}")
+            st.dataframe(client_df.iloc[::-1], use_container_width=True)
+        else:
+            st.dataframe(df_t.iloc[::-1], use_container_width=True)
 
 # ==========================================
 # 6. 刪除與撤銷單據
@@ -146,7 +162,6 @@ st.subheader("🗑️ 刪除與撤銷單據")
 if trans_data:
     delete_options = []
     for row in trans_data[::-1]:
-        # 👇 刪除選單也同步顯示客戶名稱，讓您不會刪錯單
         client_info = str(row.get('客戶名稱', '未填寫'))
         option_text = f"{row['日期']} | 客戶:{client_info} | {row['類別']} | {row['商品名稱']} | {row['數量']}件"
         delete_options.append(option_text)
