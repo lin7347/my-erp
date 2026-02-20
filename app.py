@@ -3,12 +3,16 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import json # 👈 新增這行來處理保險箱的資料
 
 # ==========================================
-# 1. 資料庫連線
+# 1. 資料庫連線 (隱形保險箱安全版)
 # ==========================================
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("key.json", scope)
+
+# 從 Streamlit 雲端保險箱讀取金鑰，並轉成字典格式
+creds_dict = json.loads(st.secrets["google_credentials"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 sheet = client.open("進銷存系統資料庫")
@@ -199,3 +203,4 @@ if trans_data:
                     st.success(f"✅ 成功刪除！單據已銷毀，庫存也已自動校正。請重新整理網頁查看最新數據。")
             except Exception as e:
                 st.error("刪除過程中發生錯誤，請確認該單據是否已在試算表被手動刪除了。")
+
