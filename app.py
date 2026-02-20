@@ -5,15 +5,12 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
 # ==========================================
-# 1. 資料庫連線 (連接您的 Google 試算表)
+# 1. 資料庫連線
 # ==========================================
-# 設定機器人的權限範圍
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-# 讀取您專屬的 key.json 鑰匙
 creds = ServiceAccountCredentials.from_json_keyfile_name("key.json", scope)
 client = gspread.authorize(creds)
 
-# 透過鑰匙打開您的試算表
 sheet = client.open("進銷存系統資料庫")
 worksheet_trans = sheet.worksheet("transactions")
 worksheet_inv = sheet.worksheet("inventory")
@@ -21,18 +18,25 @@ worksheet_inv = sheet.worksheet("inventory")
 # ==========================================
 # 2. 前端網頁介面設計
 # ==========================================
-st.set_page_config(page_title="雲端進銷存系統", layout="wide")
-st.title("☁️ 專屬進銷存系統 (Google 雲端同步版)")
+st.set_page_config(page_title="財務進銷存系統", layout="wide")
+st.title("💰 專屬進銷存與財務系統 (全中文雲端版)")
 
 st.sidebar.header("📝 新增交易單")
-trans_type = st.sidebar.selectbox("交易類別", ["進貨 (付出去的錢)", "銷貨 (收進來的錢)"])
+trans_type = st.sidebar.selectbox("交易類別", ["銷貨 (賣出賺錢)", "進貨 (買入囤貨)"])
 item_name = st.sidebar.text_input("商品名稱 (例如：A級零件)")
 qty = st.sidebar.number_input("數量", min_value=1, step=1)
-price = st.sidebar.number_input("單價 (元)", min_value=0.0, step=1.0)
-partner_name = st.sidebar.text_input("客戶/廠商名稱")
+
+if trans_type == "銷貨 (賣出賺錢)":
+    price = st.sidebar.number_input("售出單價 (元)", min_value=0.0, step=1.0)
+    cost = st.sidebar.number_input("當初進貨成本 (元) - 算利潤用", min_value=0.0, step=1.0)
+    payment = st.sidebar.selectbox("結帳狀態", ["現金結清", "記帳/月結 (應收帳款)"])
+else:
+    price = st.sidebar.number_input("進貨單價 (元)", min_value=0.0, step=1.0)
+    cost = price 
+    payment = st.sidebar.selectbox("結帳狀態", ["現金結清", "記帳/月結 (應付帳款)"])
 
 # ==========================================
-# 3. 核心商業邏輯 (寫入 Google Sheets)
+# 3. 核心邏輯 (寫入 Google Sheets)
 # ==========================================
 if st.sidebar.button("💾 確認送出"):
     if item_name == "":
@@ -40,21 +44,22 @@ if st.sidebar.button("💾 確認送出"):
     else:
         total_amount = qty * price
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # 寫入交易紀錄到 transactions 分頁
-        worksheet_trans.append_row([date_str, trans_type, item_name, qty, price, total_amount, partner_name])
-        # 讀取目前庫存狀況
-        inv_records = worksheet_inv.get_all_records()
         
-        # 尋找該商品是否已在倉庫中
+        profit = (price - cost) * qty if trans_type == "銷貨 (賣出賺錢)" else 0
+        
+        # 寫入交易紀錄 (對應 中文標題)
+        worksheet_trans.append_row([date_str, trans_type, item_name, qty, price, total_amount, payment, cost, profit])
+
+        # 庫存更新邏輯 (對應 中文標題)
+        inv_records = worksheet_inv.get_all_records()
         item_exists = False
-        row_index = 2 # 試算表第一行是標題，資料從第二行開始
+        row_index = 2 
         current_qty = 0
 
         for i, row in enumerate(inv_records):
-            if str(row.get('item', '')) == item_name:
+            if str(row.get('商品名稱', '')) == item_name:
                 item_exists = True
-                current_qty = int(row.get('qty', 0))
+                current_qty = int(row.get('數量', 0))
                 row_index = i + 2 
                 break
 
@@ -64,35 +69,70 @@ if st.sidebar.button("💾 確認送出"):
                 worksheet_inv.update_cell(row_index, 2, new_qty)
             else:
                 worksheet_inv.append_row([item_name, new_qty])
-            st.sidebar.success(f"✅ 成功進貨 {qty} 件 {item_name}！資料已同步至 Google 表單。")
+            st.sidebar.success(f"✅ 成功進貨！金額 ${total_amount:,.0f} ({payment})")
             
         elif "銷貨" in trans_type:
             if item_exists and current_qty >= qty:
                 new_qty = current_qty - qty
                 worksheet_inv.update_cell(row_index, 2, new_qty)
-                st.sidebar.success(f"💰 成功銷貨！進帳 {total_amount} 元。資料已同步至 Google 表單。")
+                st.sidebar.success(f"💰 成功銷貨！本單毛利：${profit:,.0f} ({payment})")
             else:
                 st.sidebar.error("⚠️ 失敗：倉庫裡的庫存不夠賣喔！")
 
 # ==========================================
-# 4. 數據總覽儀表板 (即時讀取試算表)
+# 4. 財務儀表板 (即時算帳)
 # ==========================================
-col1, col2 = st.columns(2)
+st.markdown("---")
+trans_data = worksheet_trans.get_all_records()
 
-with col1:
-    st.subheader("📊 目前倉庫庫存")
+if trans_data:
+    df_t = pd.DataFrame(trans_data)
+    
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    month_str = datetime.now().strftime("%Y-%m")
+    
+    # 根據中文標題計算指標
+    if '類別' in df_t.columns:
+        df_sales = df_t[df_t['類別'] == '銷貨 (賣出賺錢)']
+        df_purchases = df_t[df_t['類別'] == '進貨 (買入囤貨)']
+        
+        if '毛利' in df_t.columns:
+            # 轉換型別以防資料讀取為字串
+            df_sales['毛利'] = pd.to_numeric(df_sales['毛利'], errors='coerce').fillna(0)
+            daily_profit = df_sales[df_sales['日期'].astype(str).str.startswith(today_str)]['毛利'].sum()
+            monthly_profit = df_sales[df_sales['日期'].astype(str).str.startswith(month_str)]['毛利'].sum()
+        else:
+            daily_profit, monthly_profit = 0, 0
+            
+        if '結帳狀態' in df_t.columns and '總金額' in df_t.columns:
+            df_sales['總金額'] = pd.to_numeric(df_sales['總金額'], errors='coerce').fillna(0)
+            df_purchases['總金額'] = pd.to_numeric(df_purchases['總金額'], errors='coerce').fillna(0)
+            ar_total = df_sales[df_sales['結帳狀態'] == '記帳/月結 (應收帳款)']['總金額'].sum()
+            ap_total = df_purchases[df_purchases['結帳狀態'] == '記帳/月結 (應付帳款)']['總金額'].sum()
+        else:
+            ar_total, ap_total = 0, 0
+    else:
+        daily_profit, monthly_profit, ar_total, ap_total = 0, 0, 0, 0
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("🌟 今日實賺 (毛利)", f"${daily_profit:,.0f}")
+    col2.metric("📈 本月累計獲利", f"${monthly_profit:,.0f}")
+    col3.metric("⚠️ 在外未收 (應收帳款)", f"${ar_total:,.0f}")
+    col4.metric("💳 待付貨款 (應付帳款)", f"${ap_total:,.0f}")
+
+# ==========================================
+# 5. 數據總覽明細
+# ==========================================
+st.markdown("---")
+col_a, col_b = st.columns([1, 2])
+
+with col_a:
+    st.subheader("📦 目前庫存")
     inv_data = worksheet_inv.get_all_records()
     if inv_data:
         st.dataframe(pd.DataFrame(inv_data), use_container_width=True)
-    else:
-        st.info("目前尚無庫存資料")
 
-with col2:
-    st.subheader("💸 歷史交易與帳務")
-    trans_data = worksheet_trans.get_all_records()
+with col_b:
+    st.subheader("🧾 交易與財務明細")
     if trans_data:
-        df_t = pd.DataFrame(trans_data)
-        st.dataframe(df_t.iloc[::-1], use_container_width=True) # 反轉順序，讓最新的在最上面
-    else:
-
-        st.info("目前尚無交易資料")
+        st.dataframe(df_t.iloc[::-1], use_container_width=True)
