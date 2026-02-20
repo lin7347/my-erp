@@ -72,12 +72,16 @@ if st.sidebar.button("💾 確認送出"):
             st.sidebar.success(f"✅ 成功進貨！金額 ${total_amount:,.0f} ({payment})")
             
         elif "銷貨" in trans_type:
-            if item_exists and current_qty >= qty:
-                new_qty = current_qty - qty
+            # 直接暴力扣除庫存，允許變成負數
+            new_qty = current_qty - qty 
+            
+            if item_exists:
                 worksheet_inv.update_cell(row_index, 2, new_qty)
-                st.sidebar.success(f"💰 成功銷貨！本單毛利：${profit:,.0f} ({payment})")
             else:
-                st.sidebar.error("⚠️ 失敗：倉庫裡的庫存不夠賣喔！")
+                # 如果是全新的商品，直接新增一筆負數的庫存紀錄
+                worksheet_inv.append_row([item_name, new_qty])
+                
+            st.sidebar.success(f"💰 成功接單！本單毛利：${profit:,.0f} ({payment})。🚨 提醒：目前庫存為 {new_qty} 件。")
 
 # ==========================================
 # 4. 財務儀表板 (即時算帳)
@@ -189,3 +193,4 @@ if trans_data:
                     st.success(f"✅ 成功刪除！單據已銷毀，庫存也已自動校正。請重新整理網頁查看最新數據。")
             except Exception as e:
                 st.error("刪除過程中發生錯誤，請確認該單據是否已在試算表被手動刪除了。")
+
