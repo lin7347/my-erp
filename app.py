@@ -204,6 +204,27 @@ with col_b:
         display_df = filtered_df.drop(columns=['純日期']) if '純日期' in filtered_df.columns else filtered_df
         st.dataframe(display_df.iloc[::-1], use_container_width=True)
 
+        # ==========================================
+        # 新增：營收與毛利趨勢長條圖
+        # ==========================================
+        st.markdown("#### 📊 每日營收與毛利趨勢")
+        
+        if not filtered_df.empty:
+            # 1. 只挑出「銷貨 (賣出賺錢)」的資料來畫圖，過濾掉進貨成本
+            sales_df = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']
+            
+            if not sales_df.empty:
+                # 2. 依照「純日期」分組，把每天的「總金額」跟「毛利」加總起來
+                trend_data = sales_df.groupby('純日期')[['總金額', '毛利']].sum()
+                
+                # 3. 把欄位名稱改得更直觀一點，這會顯示在圖表的圖例上
+                trend_data.rename(columns={'總金額': '每日營業額', '毛利': '每日實賺(毛利)'}, inplace=True)
+                
+                # 4. 直接呼叫 Streamlit 內建的長條圖函數！
+                st.bar_chart(trend_data)
+            else:
+                st.info("💡 這段期間內尚無銷貨紀錄，暫時無法產生營收圖表。")
+                
 # ==========================================
 # 6. 應收/應付帳款 結帳中心
 # ==========================================
@@ -286,4 +307,5 @@ if trans_data:
                     st.success(f"✅ 成功刪除！單據已銷毀，庫存也已自動校正。請重新整理網頁查看最新數據。")
             except Exception as e:
                 st.error("刪除過程中發生錯誤，請確認該單據是否已在試算表被手動刪除了。")
+
 
