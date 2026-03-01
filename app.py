@@ -179,22 +179,30 @@ with col_b:
         if selected_item != "-- 所有商品 --":
             filtered_df = filtered_df[filtered_df['商品名稱'] == selected_item]
             
+        # 核心篩選：套用日期區間
         mask = (filtered_df['純日期'] >= start_date) & (filtered_df['純日期'] <= end_date)
         filtered_df = filtered_df[mask]
         
+        # 👇 【修改重點】解除 if 限制，讓系統一定會計算並顯示區間合計！
+        # 順便幫您把「進貨總額」也算出來，這樣對帳更清楚
+        c_sales = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['總金額'].sum()
+        c_purchase = filtered_df[filtered_df['類別'] == '進貨 (買入囤貨)']['總金額'].sum()
+        c_profit = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['毛利'].sum()
+        
+        # 動態產生標題
+        title_str = "全部客戶與商品"
         if selected_client != "-- 所有客戶 --" or selected_item != "-- 所有商品 --":
-            c_sales = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['總金額'].sum()
-            c_profit = filtered_df[filtered_df['類別'] == '銷貨 (賣出賺錢)']['毛利'].sum()
-            
             title_str = ""
-            if selected_client != "-- 所有客戶 --": title_str += f"客戶: {selected_client}  "
-            if selected_item != "-- 所有商品 --": title_str += f"商品: {selected_item}  "
-            
-            st.success(f"📌 **[{title_str.strip()}]** 於所選期間 累計銷貨：${c_sales:,.0f} ｜ 💰 期間總毛利：${c_profit:,.0f}")
-            
+            if selected_client != "-- 所有客戶 --": title_str += f"客戶:{selected_client}  "
+            if selected_item != "-- 所有商品 --": title_str += f"商品:{selected_item}  "
+        
+        # 顯示統計看板
+        st.info(f"📅 **查詢區間：{start_date} 至 {end_date}**")
+        st.success(f"📌 [{title_str.strip()}] 累計銷貨：${c_sales:,.0f} ｜ 📦 累計進貨：${c_purchase:,.0f} ｜ 💰 總毛利：${c_profit:,.0f}")
+        
+        # 顯示資料表
         display_df = filtered_df.drop(columns=['純日期']) if '純日期' in filtered_df.columns else filtered_df
         st.dataframe(display_df.iloc[::-1], use_container_width=True)
-
 
 # ==========================================
 # 6. 應收/應付帳款 結帳中心
@@ -278,3 +286,4 @@ if trans_data:
                     st.success(f"✅ 成功刪除！單據已銷毀，庫存也已自動校正。請重新整理網頁查看最新數據。")
             except Exception as e:
                 st.error("刪除過程中發生錯誤，請確認該單據是否已在試算表被手動刪除了。")
+
