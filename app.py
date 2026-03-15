@@ -28,7 +28,7 @@ trans_type = st.sidebar.selectbox("交易類別", ["銷貨 (賣出賺錢)", "進
 
 client_name = st.sidebar.text_input("客戶 / 廠商名稱 (例如：王老闆)")
 item_name = st.sidebar.text_input("商品名稱 (例如：A級零件)")
-qty = st.sidebar.number_input("數量", min_value=1, step=1)
+qty = st.sidebar.number_input("數量", min_value=1, value=1, step=1)
 
 if trans_type == "銷貨 (賣出賺錢)":
     price = st.sidebar.number_input("售出單價 (元)", min_value=0.0, step=1.0)
@@ -60,7 +60,8 @@ if st.sidebar.button("💾 確認送出"):
         for i, row in enumerate(inv_records):
             if str(row.get('商品名稱', '')) == item_name:
                 item_exists = True
-                current_qty = int(row.get('數量', 0))
+                try: current_qty = int(float(row.get('數量', 0)))
+                except: current_qty = 0
                 row_index = i + 2 
                 break
 
@@ -288,12 +289,14 @@ if trans_data:
                     
                     t_type = target_row_data.get('類別', '')
                     t_item = target_row_data.get('商品名稱', '')
-                    t_qty = int(target_row_data.get('數量', 0))
+                    try: t_qty = int(float(target_row_data.get('數量', 0)))
+                    except: t_qty = 0
                     
                     inv_records_current = worksheet_inv.get_all_records()
                     for i, inv_row in enumerate(inv_records_current):
                         if str(inv_row.get('商品名稱', '')) == t_item:
-                            current_stock = int(inv_row.get('數量', 0))
+                            try: current_stock = int(float(inv_row.get('數量', 0)))
+                            except: current_stock = 0
                             row_index = i + 2
                             
                             if "銷貨" in t_type:
