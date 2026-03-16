@@ -6,14 +6,18 @@ from datetime import datetime
 import json
 
 # ==========================================
-# 1. 資料庫連線 (隱形保險箱安全版)
+# 1. 資料庫連線 (記憶快取防崩潰版)
 # ==========================================
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds_dict = json.loads(st.secrets["google_credentials"])
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
+@st.cache_resource
+def init_connection():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds_dict = json.loads(st.secrets["google_credentials"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+    return client.open("進銷存系統資料庫")
 
-sheet = client.open("進銷存系統資料庫")
+# 呼叫快取函數，只會在系統剛啟動時連線一次
+sheet = init_connection()
 worksheet_trans = sheet.worksheet("transactions")
 worksheet_inv = sheet.worksheet("inventory")
 
