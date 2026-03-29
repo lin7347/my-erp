@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
+from datetime import datetime  
 
 # ==========================================
 # 1. 建立並記住「連線工具」 (使用 cache_resource)
