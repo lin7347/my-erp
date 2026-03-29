@@ -2,11 +2,10 @@ import streamlit as st
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
 import json
 
 # ==========================================
-# 1. 資料庫連線 (記憶快取防崩潰版)
+# 1. 建立並記住「連線工具」 (使用 cache_resource)
 # ==========================================
 @st.cache_resource
 def init_connection():
@@ -14,12 +13,34 @@ def init_connection():
     creds_dict = json.loads(st.secrets["google_credentials"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    return client.open("進銷存系統資料庫")
+    sheet = client.open("進銷存系統資料庫")
+    
+    # 把尋找分頁的動作也放進來，徹底阻絕重複連線！
+    ws_trans = sheet.worksheet("transactions")
+    ws_inv = sheet.worksheet("inventory")
+    return ws_trans, ws_inv
 
-# 呼叫快取函數，只會在系統剛啟動時連線一次
-sheet = init_connection()
-worksheet_trans = sheet.worksheet("transactions")
-worksheet_inv = sheet.worksheet("inventory")
+# 呼叫連線工具 (程式怎麼重整，都不會重新連線)
+worksheet_trans, worksheet_inv = init_connection()
+
+# ==========================================
+# 2. 抓取並記住「資料內容」 (使用 cache_data，設定 10 分鐘過期)
+# ==========================================
+@st.cache_data(ttl=600)
+def get_erp_data():
+    # 這裡才是真正去 Google 把所有資料撈下來變成表格的地方
+    df_trans = pd.DataFrame(worksheet_trans.get_all_records())
+    df_inv = pd.DataFrame(worksheet_inv.get_all_records())
+    return df_trans, df_inv
+
+# 呼叫資料 (10 分鐘內網頁隨便點，都不會耗費 Google 額度)
+df_transactions, df_inventory = get_erp_data()
+
+# ==========================================
+# 測試顯示結果
+# ==========================================
+st.write("✅ 資料庫連線成功！")
+st.dataframe(df_inventory)
 
 # ==========================================
 # 2. 前端網頁介面設計
