@@ -43,6 +43,28 @@ st.write("✅ 資料庫連線成功！")
 st.dataframe(df_inventory)
 
 # ==========================================
+# 2. 前端網頁介面設計
+# ==========================================
+st.set_page_config(page_title="財務進銷存系統", layout="wide")
+st.title("💰 專屬進銷存與財務系統 (全中文雲端版)")
+
+st.sidebar.header("📝 新增交易單")
+trans_type = st.sidebar.selectbox("交易類別", ["銷貨 (賣出賺錢)", "進貨 (買入囤貨)"])
+
+client_name = st.sidebar.text_input("客戶 / 廠商名稱 (例如：王老闆)")
+item_name = st.sidebar.text_input("商品名稱 (例如：A級零件)")
+qty = st.sidebar.number_input("數量", min_value=1, value=1, step=1)
+
+if trans_type == "銷貨 (賣出賺錢)":
+    price = st.sidebar.number_input("售出單價 (元)", min_value=0.0, step=1.0)
+    cost = st.sidebar.number_input("當初進貨成本 (元) - 算利潤用", min_value=0.0, step=1.0)
+    payment = st.sidebar.selectbox("結帳狀態", ["現金結清", "記帳/月結 (應收帳款)"])
+else:
+    price = st.sidebar.number_input("進貨單價 (元)", min_value=0.0, step=1.0)
+    cost = price 
+    payment = st.sidebar.selectbox("結帳狀態", ["現金結清", "記帳/月結 (應付帳款)"])
+
+# ==========================================
 # 3. 核心邏輯 (寫入 Google Sheets)
 # ==========================================
 if st.sidebar.button("💾 確認送出"):
