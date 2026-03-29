@@ -106,6 +106,8 @@ if st.sidebar.button("💾 確認送出"):
             else:
                 worksheet_inv.append_row([item_name, new_qty])
             st.sidebar.success(f"💰 成功接單！本單毛利：${profit:,.0f} ({payment})。🚨 提醒：目前庫存為 {new_qty} 件。")
+            get_erp_data.clear()
+            st.rerun()
 
 # ==========================================
 # 4. 資料清洗與財務儀表板 (新增現金結餘)
